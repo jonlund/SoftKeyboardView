@@ -10,8 +10,9 @@ import UIKit
 
 // TODO: need to send a bunch of events listed in uiwindow
 
-class KeyButton: UIButton {
-	var key: SoftKeyboardView.Key!
+/// Class for representing a key
+fileprivate class KeyButton: UIButton {
+	var key: Key!
 	private var _isCaps = false
 	var isCaps: Bool {
 		get { return _isCaps }
@@ -40,6 +41,7 @@ class KeyButton: UIButton {
 
 fileprivate let sharedKeyboardManager = SoftKeyboardManager()
 
+/// Manager for coming and going of keyboards
 class SoftKeyboardManager {
 	
 	static var shared: SoftKeyboardManager { return sharedKeyboardManager }
@@ -53,30 +55,28 @@ class SoftKeyboardManager {
 			}
 		}
 	}
-
+	
 	// MARK: - Observing for when needed
 	init() {
 		NotificationCenter.default.addObserver(self, selector: #selector(editingBegan(notifiction:)), name: UITextField.textDidBeginEditingNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(editingEnded(notifiction:)), name: UITextField.textDidEndEditingNotification, object: nil)
 	}
 	
-	private func dismissAll() {
+	func dismissAll() {
 		keyboards.forEach { responder, keyboard in
 			keyboard.removeFromSuperview()
 		}
 		keyboards.removeAll()
 	}
-
+	
 	@IBAction func editingBegan(notifiction: Notification) {
 		guard disabled == false else { return }
 		guard let textField = notifiction.object as? UITextField else { return }
 		guard let window = textField.window else { return }
+		guard textField.inputView == nil else { return }
 		let keyboard = SoftKeyboardView(frame: .zero)
+		//		keyboard.translatesAutoresizingMaskIntoConstraints = false
 		window.addSubview(keyboard)
-		keyboard.translatesAutoresizingMaskIntoConstraints = false
-		keyboard.centerXAnchor.constraint(equalTo: window.centerXAnchor).isActive = true
-		keyboard.widthAnchor.constraint(lessThanOrEqualTo: window.widthAnchor, multiplier: 1).isActive = true
-		keyboard.bottomAnchor.constraint(equalTo: window.bottomAnchor, constant: 0).isActive = true
 		keyboard.textField = textField
 		keyboard.checkForAutoCapitalization()
 		keyboards[textField] = keyboard		// save so we can get rid of it
@@ -101,7 +101,7 @@ class SoftKeyboardManager {
 		}
 		
 	}
-
+	
 	@IBAction func editingEnded(notifiction: Notification) {
 		guard let textField = notifiction.object as? UITextField else { return }
 		if let kb = keyboards[textField] {
@@ -120,7 +120,7 @@ class SoftKeyboardManager {
 				}
 			}
 		}
-
+		
 		keyboards[textField]?.removeFromSuperview()
 		keyboards[textField] = nil
 	}
@@ -129,7 +129,7 @@ class SoftKeyboardManager {
 extension UIButton {
 	static func backgroundImageForColor(_ color: UIColor, cornerRadius: CGFloat) -> UIImage {
 		let size = CGSize(width: cornerRadius*2+1, height: cornerRadius*2+1)
-		_ = UIGraphicsBeginImageContextWithOptions(size, false, UIScreen.main.scale)
+		UIGraphicsBeginImageContextWithOptions(size, false, UIScreen.main.scale)
 		defer { UIGraphicsEndImageContext() }
 		let rect = CGRect(origin: .zero, size: size)
 		let path = UIBezierPath(roundedRect: rect, cornerRadius: cornerRadius)
@@ -141,78 +141,124 @@ extension UIButton {
 	}
 }
 
+
+fileprivate enum Key: ExpressibleByStringLiteral, Equatable {
+	case letter(String)
+	case backspace
+	case shift(Bool)	// isLeft
+	case done
+	case blank
+	case dismiss
+	
+	init(stringLiteral value: StringLiteralType) {
+		self = .letter(value)
+	}
+	
+	var title: String {
+		switch self {
+		case .letter(let x):	return x
+		case .backspace:		return "delete"
+		case .shift(_):			return "shift"
+		case .done:				return "done"
+		case .blank:			return ""
+		case .dismiss:			return "dismiss"
+		}
+	}
+	
+	var image: UIImage? {
+		switch self {
+		case .letter(_):		return nil
+		case .backspace:		return UIImage(systemName: "delete.left")
+		case .shift(_):			return nil
+		case .done:				return nil
+		case .blank:			return nil
+		case .dismiss:			return UIImage(systemName: "keyboard.chevron.compact.down")
+		}
+	}
+	
+	var isShift: Bool {
+		switch self {
+		case .shift(_):	return true
+		default:		return false
+		}
+	}
+	
+	var textValue: String? {
+		switch self {
+		case .letter(let x):	return x
+		default: 				return nil
+		}
+	}
+	
+	var button: KeyButton {
+		let button = KeyButton(type: .custom)
+		button.key = self
+		if let image = self.image {
+			button.setImage(image, for: .normal)
+			button.setTitle(nil, for: .normal)
+		}
+		else {
+			button.setTitle(title, for: .normal)
+		}
+		button.layer.cornerRadius = 5
+		button.layer.borderColor = UIColor.darkGray.cgColor
+		button.layer.borderWidth = 1.5
+		button.layer.backgroundColor = UIColor.gray.cgColor
+		
+		// Set up coloring
+		switch self {
+		case .letter(_):
+			button.layer.backgroundColor = UIColor.white.cgColor
+			button.setTitleColor(.darkText, for: .normal)
+		case .blank:
+			button.alpha = 0.0
+			button.isEnabled = false
+			fallthrough
+		case .shift:
+			let bg = UIButton.backgroundImageForColor(.white, cornerRadius: 5)
+			button.setBackgroundImage(bg, for: .selected)
+			button.setTitleColor(.darkText, for: .selected)
+			fallthrough
+		case .backspace, .dismiss:
+			button.layer.backgroundColor = UIColor.gray.cgColor
+			button.tintColor = .white
+		case .done:
+			button.layer.backgroundColor = UIColor.link.cgColor
+			button.tintColor = .white
+		}
+		
+		return button
+	}
+}
+
+
 class SoftKeyboardView: UIView {
 
-	enum Key {
-		case letter(String)
-		case backspace
-		case shift(Bool)	// isLeft
-		case done
-		case blank
-		case dismiss
-		
-		var title: String {
-			switch self {
-			case .letter(let x):	return x
-			case .backspace:		return "delete"
-			case .shift(_):			return "shift"
-			case .done:				return "done"
-			case .blank:			return ""
-			case .dismiss:			return "dismiss"
-			}
+	@available(macCatalyst, unavailable, message: "input views don't work on mac")
+	public static func inputView(for textField: UITextField) -> SoftKeyboardView {
+		var frame: CGRect = .zero
+		if let w = textField.window?.bounds.size {
+			let percentHeight: CGFloat = 0.5
+			frame = .init(x: 0, y: w.height * 1.0 - percentHeight, width: w.width, height: w.height * percentHeight)
 		}
-		
-		var isShift: Bool {
-			switch self {
-			case .shift(_):	return true
-			default:		return false
-			}
-		}
-		
-		var textValue: String? {
-			switch self {
-			case .letter(let x):	return x
-			default: 				return nil
-			}
-		}
-		
-		var button: KeyButton {
-			let button = KeyButton(type: .custom)
-			button.key = self
-			button.setTitle(title, for: .normal)
-			button.layer.cornerRadius = 5
-			button.layer.borderColor = UIColor.darkGray.cgColor
-			button.layer.borderWidth = 1.5
-			button.layer.backgroundColor = UIColor.gray.cgColor
-
-			// Set up coloring
-			switch self {
-			case .letter(_):
-				button.layer.backgroundColor = UIColor.white.cgColor
-				button.setTitleColor(.darkText, for: .normal)
-			case .dismiss:
-				button.layer.backgroundColor = UIColor.gray.cgColor
-				if #available(iOS 13.0, *) {
-					button.tintColor = .white
-					let image = UIImage(systemName: "keyboard.chevron.compact.down")
-					button.setImage(image, for: .normal)
-					button.setTitle(nil, for: .normal)
+		let keyboard = SoftKeyboardView(frame: frame)
+		//		keyboard.translatesAutoresizingMaskIntoConstraints = true
+		//		keyboard.autoresizingMask = [.flexibleHeight,.flexibleWidth]
+		keyboard.textField = textField
+		keyboard.checkForAutoCapitalization()
+		return keyboard
+	}
+	
+	fileprivate subscript(index: Key) -> UIView? {
+		for v in vStack.arrangedSubviews {
+			for h in (v as! UIStackView).arrangedSubviews {
+				guard let k = h as? KeyButton else { continue }
+				if k.key == index {
+					return k
 				}
-			case .blank:
-				button.isEnabled = false
-				fallthrough
-			case .shift:
-				let bg = UIButton.backgroundImageForColor(.white, cornerRadius: 5)
-				button.setBackgroundImage(bg, for: .selected)
-				button.setTitleColor(.darkText, for: .selected)
-				fallthrough
-			case .backspace, .done:
-				button.layer.backgroundColor = UIColor.gray.cgColor
 			}
-			
-		
-			return button
 		}
+		return nil
 	}
 	
 	override var intrinsicContentSize: CGSize { return CGSize(width: 1024, height: 360) }
@@ -227,47 +273,98 @@ class SoftKeyboardView: UIView {
 	private var allButtons: [KeyButton] {
 		return vStack.arrangedSubviews.flatMap { ($0 as! UIStackView).arrangedSubviews.map({$0 as! KeyButton})}
 	}
-
+	
 	var capsOn: Bool = false {
 		didSet {
 			allButtons.forEach { $0.isCaps = capsOn }
 		}
 	}
-	var textField: UITextField!
+	
+	
+	private var timerObserver: Timer?
+	private var prevType: UIKeyboardType?
+	
+	weak var textField: UITextField? {
+		didSet {
+			timerObserver?.invalidate()
+			
+			guard let tf = textField else { return }
+			self.didChangeKeyboardType(tf.keyboardType)
+			prevType = tf.keyboardType
+			timerObserver = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true, block: { [weak self] _ in
+				if tf.keyboardType != self?.prevType {
+					print("Change")
+					self?.prevType = tf.keyboardType
+					self?.didChangeKeyboardType(tf.keyboardType)
+				}
+			})
+		}
+	}
 	
 	override init(frame: CGRect) {
 		super.init(frame: frame)
 		self.backgroundColor = .lightGray
-		addKeys()
 	}
 	
 	required init?(coder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
 	}
 	
-	func addKeys() {
-		var row0 = [Key]()
-		var row1 = [Key]()
-		var row2 = [Key]()
-		var row3 = [Key]()
-		var row4 = [Key]()
-
-		"`1234567890".forEach { row0.append(.letter(String($0))) }
-		row0.append(.backspace)
-		row1.append(.blank)
-		"qwertyuiop".forEach { row1.append(.letter(String($0))) }
-		row1.append(.blank)
-		row2.append(.blank)
-		"asdfghjkl".forEach  { row2.append(.letter(String($0))) }
-		row2.append(.done)
-		row3.append(.shift(true))
-		"zxcvbnm".forEach  { row3.append(.letter(String($0))) }
-		row3.append(.shift(false))
-		//row4.append(.blank)
-		" .@".forEach  { row4.append(.letter(String($0))) }
-		row4.append(.letter(".com"))
-		row4.append(.dismiss)
-		let allKeys: [[Key]] = [row0,row1,row2,row3,row4]
+	deinit {
+		timerObserver?.invalidate()
+	}
+	
+	func didChangeKeyboardType(_ keyboardType: UIKeyboardType) {
+		self.subviews.forEach { $0.removeFromSuperview() }
+		
+		
+		
+		var aspectRatio: CGFloat = 1.0
+		let allKeys: [[Key]]
+		
+		switch keyboardType {
+		
+		case .default,.asciiCapable,.numbersAndPunctuation,.URL,.emailAddress,.twitter,.webSearch:
+			allKeys	= [
+				["`","1","2","3","4","5","6","7","8","9","0",.backspace],
+				[.blank,"q","w","e","r","t","y","u","i","o","p",.blank],
+				[.blank,"a","s","d","f","g","h","j","k","l",.done],
+				[.shift(true),"z","x","c","v","b","n","m",.shift(false)],
+				[" ",".","@",".com",.dismiss]
+			]
+			
+		case .numberPad,.phonePad,.namePhonePad,.decimalPad,.asciiCapableNumberPad:
+			allKeys	= [
+				[.blank,"1","2","3",.blank],
+				[.blank,"4","5","6",.blank],
+				[.blank,"7","8","9",.blank],
+				[.blank,.done,"0",.backspace,.blank]
+			]
+			if traitCollection.userInterfaceIdiom != .phone {
+				aspectRatio = 1.33
+			}
+			
+			
+		@unknown default:
+			fatalError()
+		}
+		
+		var padding: CGFloat = 10.0
+		// make smaller for iPhone
+		if let v = textField?.window,
+		   v.frame.size.width < 767.0 {
+			//v.traitCollection.userInterfaceIdiom == .phone {
+			padding = 4.0
+		}
+		
+		
+		// Put them all into a vertical stack
+		vStack = UIStackView()
+		vStack.axis = .vertical
+		vStack.spacing = padding
+		vStack.distribution = .fillEqually
+		vStack.tintColor = .darkText
+		
 		
 		
 		// Make the horizontal stack views
@@ -275,37 +372,47 @@ class SoftKeyboardView: UIView {
 		rows.forEach { stackView in
 			stackView.alignment = .center
 			stackView.distribution = .fill
-			stackView.spacing = 10
+			stackView.spacing = padding
 			stackView.axis = .horizontal
 			let kbs = stackView.arrangedSubviews as! [KeyButton]
-			kbs.forEach { addConstraints(button: $0)}
-			//allTextKeys.append(contentsOf: kbs.filter({ $0.key.textValue != nil }) )
+			kbs.forEach { addConstraints(button: $0, aspectRatio: aspectRatio)}
 		}
 		
-		// Special constraints
-		let leftShift  = rows[3].arrangedSubviews.first as! KeyButton
-		let rightShift = rows[3].arrangedSubviews.last as! KeyButton
-		leftShift.widthAnchor.constraint(equalTo: rightShift.widthAnchor, multiplier: 1.0).isActive = true
-
-		let leftTab  = rows[1].arrangedSubviews.first as! KeyButton
-		let rightTab = rows[1].arrangedSubviews.last as! KeyButton
-		leftTab.widthAnchor.constraint(equalTo: rightTab.widthAnchor, multiplier: 1.0).isActive = true
-
-		let leftEnter  = rows[2].arrangedSubviews.first as! KeyButton
-		let rightEnter = rows[2].arrangedSubviews.last as! KeyButton
-		leftEnter.widthAnchor.constraint(equalTo: rightEnter.widthAnchor, multiplier: 1.0).isActive = true
-
+		rows.forEach { vStack.addArrangedSubview($0) }
 		
-		// Put them all into a vertical stack
-		vStack = UIStackView(arrangedSubviews: rows)
-		vStack.axis = .vertical
-		vStack.spacing = 10
-		vStack.distribution = .fillEqually
-		vStack.tintColor = .darkText
 		
+		// Constraints: make them all the same height
 		for i in 1...3 {
 			rows[i].heightAnchor.constraint(equalTo: rows[0].heightAnchor, multiplier: 1).isActive = true
 		}
+		
+		// Special constraints (when there are shift keys it's the normal keyboard and we need to do a few things)
+		if let leftShift  = self[.shift(true)],
+		   let rightShift = self[.shift(false)] {
+			leftShift.widthAnchor.constraint(equalTo: rightShift.widthAnchor, multiplier: 1.0).isActive = true
+			
+			let leftTab  = rows[1].arrangedSubviews.first as! KeyButton
+			let rightTab = rows[1].arrangedSubviews.last as! KeyButton
+			leftTab.widthAnchor.constraint(equalTo: rightTab.widthAnchor, multiplier: 1.0).isActive = true
+			
+			let leftEnter  = rows[2].arrangedSubviews.first as! KeyButton
+			let rightEnter = rows[2].arrangedSubviews.last as! KeyButton
+			leftEnter.widthAnchor.constraint(equalTo: rightEnter.widthAnchor, multiplier: 1.0).isActive = true
+		}
+		else {
+			for row in rows {
+				let left = row.arrangedSubviews.first!
+				let right = row.arrangedSubviews.last!
+				left.widthAnchor.constraint(equalTo: right.widthAnchor).isActive = true
+			}
+			let first = self["1"]!
+			let done = self[.done]!
+			let bksp = self[.backspace]!
+			done.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
+			bksp.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
+		}
+		
+		
 		
 		
 		self.addSubview(vStack)
@@ -313,11 +420,11 @@ class SoftKeyboardView: UIView {
 		vStack.leftAnchor.constraint(equalTo: self.leftAnchor, constant: 10).isActive = true
 		vStack.rightAnchor.constraint(equalTo: self.rightAnchor, constant: -10).isActive = true
 		vStack.topAnchor.constraint(equalTo: self.topAnchor, constant: 10).isActive = true
-		vStack.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -10).isActive = true
+		vStack.bottomAnchor.constraint(equalTo: self.safeAreaLayoutGuide.bottomAnchor, constant: -10).isActive = true
 		
 	}
 	
-	func addConstraints(button: KeyButton) {
+	private func addConstraints(button: KeyButton, aspectRatio: CGFloat = 1.0) {
 		button.translatesAutoresizingMaskIntoConstraints = false
 		button.tintColor = .darkText
 		button.titleLabel?.textColor = .darkText
@@ -325,11 +432,12 @@ class SoftKeyboardView: UIView {
 		switch button.key! {
 		case .letter(let x):
 			if x != " " {	// spacebar not square
-				button.widthAnchor.constraint(equalTo: button.heightAnchor, multiplier: 1).isActive = true
+				button.widthAnchor.constraint(equalTo: button.heightAnchor, multiplier: aspectRatio).isActive = true
 			}
 		case .backspace:
-			button.titleLabel?.textAlignment = .right
-			button.contentVerticalAlignment = .bottom
+			button.widthAnchor.constraint(greaterThanOrEqualTo: button.heightAnchor, multiplier: aspectRatio).isActive = true
+		//			button.titleLabel?.textAlignment = .right
+		//			button.contentVerticalAlignment = .bottom
 		case .shift(let isLeft):
 			button.titleLabel?.textAlignment = isLeft ? .left : .right
 			button.contentVerticalAlignment = .bottom
@@ -341,7 +449,7 @@ class SoftKeyboardView: UIView {
 		case .dismiss:
 			button.widthAnchor.constraint(equalTo: button.heightAnchor, multiplier: 1).isActive = true
 		}
-
+		
 		button.heightAnchor.constraint(equalTo: button.superview!.heightAnchor, multiplier: 1).isActive = true
 		button.addTarget(self, action: #selector(keyDown(_:)), for: .touchDown)
 		button.addTarget(self, action: #selector(keyUp(_:)), for: .touchUpInside)
@@ -349,16 +457,17 @@ class SoftKeyboardView: UIView {
 	}
 	
 	func enteredString(_ string: String) {
-		if let d = textField.delegate,
-			d.responds(to: #selector(UITextFieldDelegate.textField(_:shouldChangeCharactersIn:replacementString:))) {
-			let range = NSRange(location: textField.text?.count ?? 0, length: string.count)
-			guard d.textField!(textField, shouldChangeCharactersIn: range, replacementString: string) else {
+		if let d = textField?.delegate,
+		   d.responds(to: #selector(UITextFieldDelegate.textField(_:shouldChangeCharactersIn:replacementString:))) {
+			let range = NSRange(location: textField?.text?.count ?? 0, length: string.count)
+			guard let result = d.textField?(textField!, shouldChangeCharactersIn: range, replacementString: string),
+				  result == true else {
 				return
 			}
 		}
 		
-//		textField.text = (textField.text ?? "").appending(string)
-		textField.insertText(string)
+		//		textField.text = (textField.text ?? "").appending(string)
+		textField?.insertText(string)
 		if capsOn && string != " " {
 			capsOn = false
 		}
@@ -371,7 +480,7 @@ class SoftKeyboardView: UIView {
 	func checkForAutoCapitalization() {
 		guard capsOn == false else { return } // no need
 		
-		guard let string = textField.text, string.count > 0 else {
+		guard let string = textField?.text, string.count > 0 else {
 			switch textField!.autocapitalizationType {
 			case .words,.sentences,.allCharacters:	capsOn = true
 			default: ()
@@ -380,7 +489,7 @@ class SoftKeyboardView: UIView {
 		}
 		
 		switch textField!.autocapitalizationType {
-				
+		
 		case .words:
 			if string.range(of: "\\s$", options: [.regularExpression]) != nil { capsOn = true }
 		case .sentences:
@@ -394,49 +503,61 @@ class SoftKeyboardView: UIView {
 	}
 	
 	func backspace() {
-		if let text = textField.text,
-			text.count > 0 {
+		if let text = textField?.text,
+		   text.count > 0 {
 			//textField.text = String(text.dropLast())
-			textField.deleteBackward()
+			textField?.deleteBackward()
 		}
 	}
 	
-	func tryDone(force: Bool = false) {
+	func tryDone(sender: UIButton, force: Bool = false) {
+		guard let textField = textField else { return }
 		guard textField.isFirstResponder else { return }
-		guard textField?.delegate?.textFieldShouldReturn?(textField) != false else {
+		guard textField.delegate?.textFieldShouldReturn?(textField) != false else {
 			return
 		}
 		//guard textField?.delegate?.textFieldShouldEndEditing?(textField) != false else { return }
-		guard textField.isFirstResponder else { return }
 		guard textField.canResignFirstResponder else { return }
-		if force {
+		if force || textField.delegate == nil {
 			textField.resignFirstResponder()
 		}
 	}
 	
-	
+	override func didMoveToSuperview() {
+		super.didMoveToSuperview()
+		
+		// let's switch to constraints
+		if //translatesAutoresizingMaskIntoConstraints == true,
+			let window = self.superview {
+			self.translatesAutoresizingMaskIntoConstraints = false
+			self.centerXAnchor.constraint(equalTo: window.centerXAnchor).isActive = true
+			self.widthAnchor.constraint(lessThanOrEqualTo: window.widthAnchor, multiplier: 1).isActive = true
+			self.bottomAnchor.constraint(equalTo: window.safeAreaLayoutGuide.bottomAnchor, constant: 0).isActive = true
+		}
+	}
 	
 	// MARK: - UI Callbacks
 	
-	@IBAction func keyDown(_ sender: KeyButton) {
+	@IBAction func keyDown(_ sender: UIButton) {
 		sender.layer.anchorPoint = CGPoint(x: 0.5, y: 1.0)
 		sender.transform = CGAffineTransform(scaleX: 2, y: 2)
 		sender.layer.zPosition = 999
 	}
-
-	@IBAction func keyUp(_ sender: KeyButton) {
+	
+	@IBAction func keyUp(_ sender: UIButton) {
 		sender.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 		sender.transform = .identity
 		sender.layer.zPosition = 1
+		guard let sender = sender as? KeyButton else { return }
 		switch sender.key! {
 		case .letter(_):		enteredString(sender.textValue!)
 		case .backspace:		backspace()
 		case .shift(_):			self.capsOn = !capsOn
-		case .done:				tryDone()
+		case .done:				tryDone(sender: sender)
 		case .blank:			()
-		case .dismiss:			tryDone(force: true)
+		case .dismiss:			tryDone(sender: sender, force: true)
 		}
 	}
-
+	
 }
 
