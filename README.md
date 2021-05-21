@@ -1,5 +1,5 @@
 # SoftKeyboardView
-A pure swift iOS keyboard for times when complete keyboard control is needed. This was originally built for a mac catalyst app using a touch screen. All you have to do is add SoftKeyboardView to your project and somewhere (e.g. `appDidFinishLaunching`) hit the singleton:
+A pure swift iOS keyboard for times when complete keyboard control is needed. This was originally built for a mac catalyst app using a touch screen. All you have to do is add `SoftKeyboardView.swift` to your project and somewhere (e.g. `appDidFinishLaunching`) hit the singleton:
 
 # Usage:
 		SoftKeyboardManager.shared.disabled = false
