@@ -149,6 +149,7 @@ fileprivate enum Key: ExpressibleByStringLiteral, Equatable {
 	case done
 	case blank
 	case dismiss
+	case invisible
 	
 	init(stringLiteral value: StringLiteralType) {
 		self = .letter(value)
@@ -162,6 +163,7 @@ fileprivate enum Key: ExpressibleByStringLiteral, Equatable {
 		case .done:				return "done"
 		case .blank:			return ""
 		case .dismiss:			return "dismiss"
+		case .invisible:		return ""
 		}
 	}
 	
@@ -173,6 +175,7 @@ fileprivate enum Key: ExpressibleByStringLiteral, Equatable {
 		case .done:				return nil
 		case .blank:			return nil
 		case .dismiss:			return UIImage(systemName: "keyboard.chevron.compact.down")
+		case .invisible:		return nil
 		}
 	}
 	
@@ -225,6 +228,9 @@ fileprivate enum Key: ExpressibleByStringLiteral, Equatable {
 		case .done:
 			button.layer.backgroundColor = UIColor.link.cgColor
 			button.tintColor = .white
+		case .invisible:
+			button.alpha = 0.0
+			button.isEnabled = false
 		}
 		
 		return button
@@ -333,7 +339,7 @@ class SoftKeyboardView: UIView {
 				[" ",".","@",".com",.dismiss]
 			]
 			
-		case .numberPad,.phonePad,.namePhonePad,.decimalPad,.asciiCapableNumberPad:
+		case .numberPad,.phonePad,.namePhonePad,.asciiCapableNumberPad:
 			allKeys	= [
 				[.blank,"1","2","3",.blank],
 				[.blank,"4","5","6",.blank],
@@ -344,6 +350,17 @@ class SoftKeyboardView: UIView {
 				aspectRatio = 1.33
 			}
 			
+		case .decimalPad:
+			allKeys	= [
+				[.blank,"1","2","3",.invisible,.blank],
+				[.blank,"4","5","6",.invisible,.blank],
+				[.blank,"7","8","9",.invisible,.blank],
+				[.blank,".","0",.backspace,.done,.blank]
+			]
+			if traitCollection.userInterfaceIdiom != .phone {
+				aspectRatio = 1.33
+			}
+
 			
 		@unknown default:
 			fatalError()
@@ -448,6 +465,8 @@ class SoftKeyboardView: UIView {
 			()
 		case .dismiss:
 			button.widthAnchor.constraint(equalTo: button.heightAnchor, multiplier: 1).isActive = true
+		case .invisible:
+			button.widthAnchor.constraint(equalTo: button.heightAnchor, multiplier: aspectRatio).isActive = true
 		}
 		
 		button.heightAnchor.constraint(equalTo: button.superview!.heightAnchor, multiplier: 1).isActive = true
@@ -556,6 +575,7 @@ class SoftKeyboardView: UIView {
 		case .done:				tryDone(sender: sender)
 		case .blank:			()
 		case .dismiss:			tryDone(sender: sender, force: true)
+		case .invisible:		()
 		}
 	}
 	

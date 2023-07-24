@@ -21,7 +21,7 @@ class ViewController: UIViewController {
 	
 	/// cycle through the keyboard types
 	@IBAction func togglePressed(_ sender: Any) {
-		let types: [UIKeyboardType] = [.asciiCapable,.default,.numberPad,.namePhonePad,.phonePad]
+		let types: [UIKeyboardType] = [.asciiCapable,.default,.numberPad,.namePhonePad,.phonePad,.decimalPad]
 		i += 1
 		i = i % types.count
 		tf.keyboardType = types[i]
